@@ -25,7 +25,16 @@ func main() {
 
 		for _, update := range updates {
 			offset = update.UpdateID + 1
-			slog.Info("Chat message: %+v\n", update)
+
+			if !bot.shouldSetFilter(update.Message.Text) {
+				continue
+			}
+
+			if err := bot.setFilter(update.Message); err != nil {
+				slog.Error("failed to set filter:", err)
+			}
+
+			// TODO: filter messages by media type.
 		}
 	}
 }

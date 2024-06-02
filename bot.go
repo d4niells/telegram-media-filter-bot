@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -10,22 +11,22 @@ import (
 
 const telegramAPI = "https://api.telegram.org/bot"
 
-type UpdateMessageChat struct {
+type Chat struct {
 	ID int `json:"id"`
 }
 
-type UpdateMessage struct {
-	MessageID int               `json:"message_id"`
-	Text      string            `json:"text"`
-	Chat      UpdateMessageChat `json:"chat"`
-	Photo     []any             `json:"photo"`
-	Video     any               `json:"video"`
-	Document  any               `json:"document"`
+type Message struct {
+	MessageID int    `json:"message_id"`
+	Text      string `json:"text"`
+	Chat      Chat   `json:"chat"`
+	Photo     []any  `json:"photo"`
+	Video     any    `json:"video"`
+	Document  any    `json:"document"`
 }
 
 type Update struct {
-	UpdateID int           `json:"update_id"`
-	Message  UpdateMessage `json:"message"`
+	UpdateID int     `json:"update_id"`
+	Message  Message `json:"message"`
 }
 
 type Bot struct {
@@ -60,4 +61,41 @@ func (b *Bot) getUpdates(offset int) ([]Update, error) {
 	}
 
 	return result.Result, nil
+}
+
+func (b *Bot) sendMessage(text string, chatID, replyToMessageID int) error {
+	msg := map[string]any{
+		"chat_id":             chatID,
+		"text":                text,
+		"reply_to_message_id": replyToMessageID,
+	}
+
+	msgBytes, err := json.Marshal(msg)
+	if err != nil {
+		return err
+	}
+
+	res, err := http.Post(b.withToken("/sendMessage"), "application/json", bytes.NewBuffer(msgBytes))
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	return nil
+}
+
+func (b *Bot) shouldSetFilter(msg string) bool {
+	return msg != "" && strings.HasPrefix(msg, "/setfilter")
+}
+
+func (b *Bot) setFilter(msg Message) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	filterType := strings.TrimSpace(strings.TrimPrefix(msg.Text, "/setfilter"))
+	if filterType != "photo" && filterType != "video" && filterType != "document" && filterType != "text" && filterType != "none" {
+		return b.sendMessage("Invalid filter type. Use photo, video, document, text or none.", msg.Chat.ID, msg.MessageID)
+	}
+	b.filterType = filterType
+	return b.sendMessage(fmt.Sprintf("Filter type set to %s", filterType), msg.Chat.ID, msg.MessageID)
 }
