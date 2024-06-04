@@ -32,9 +32,21 @@ func main() {
 
 			if err := bot.setFilter(update.Message); err != nil {
 				slog.Error("failed to set filter:", err)
+				continue
 			}
 
-			// TODO: filter messages by media type.
+			if !bot.shoudlDeleteMessage(update.Message) {
+				continue
+			}
+
+			if err := bot.deleteMessage(update.Message.Chat.ID, update.Message.MessageID); err != nil {
+				slog.Error("failed to delete message:", err)
+				continue
+			}
+
+			if err := bot.sendMessage("Filtered message detected and removed", update.Message.Chat.ID, update.Message.MessageID); err != nil {
+				slog.Error("failed to send reply message that was detected and removed:", err)
+			}
 		}
 	}
 }

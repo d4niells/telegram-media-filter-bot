@@ -9,8 +9,6 @@ import (
 	"sync"
 )
 
-const telegramAPI = "https://api.telegram.org/bot"
-
 type Chat struct {
 	ID int `json:"id"`
 }
@@ -98,4 +96,42 @@ func (b *Bot) setFilter(msg Message) error {
 	}
 	b.filterType = filterType
 	return b.sendMessage(fmt.Sprintf("Filter type set to %s", filterType), msg.Chat.ID, msg.MessageID)
+}
+
+func (b *Bot) shoudlDeleteMessage(msg Message) bool {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	switch b.filterType {
+	case "photo":
+		return msg.Photo != nil
+	case "video":
+		return msg.Video != nil
+	case "document":
+		return msg.Document != nil
+	case "text":
+		return msg.Text != ""
+	default:
+		return false
+	}
+}
+
+func (b *Bot) deleteMessage(chatID, messageID int) error {
+	msg := map[string]any{
+		"chat_id":    chatID,
+		"message_id": messageID,
+	}
+
+	msgBytes, err := json.Marshal(msg)
+	if err != nil {
+		return err
+	}
+
+	res, err := http.Post(b.withToken("/deleteMessage"), "application/json", bytes.NewBuffer(msgBytes))
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	return nil
 }
